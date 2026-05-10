@@ -5,9 +5,9 @@ import google.generativeai as genai
 
 app = Flask(__name__)
 
-# =========================
+# ===================================
 # 環境變數
-# =========================
+# ===================================
 
 CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -15,42 +15,25 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 print("LINE TOKEN 是否存在：", CHANNEL_ACCESS_TOKEN is not None)
 print("GEMINI KEY 是否存在：", GEMINI_API_KEY is not None)
 
-# =========================
+# ===================================
 # Gemini 初始化
-# =========================
+# ===================================
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel(
-    model_name="gemini-pro",
-    system_instruction="""
-你是一位專業台股投資分析師。
+model = genai.GenerativeModel("gemini-pro")
 
-你擅長：
-- 台股分析
-- 技術分析
-- KD 指標
-- 布林通道
-- 均線
-- 成交量
-- 短線交易
-- 波段交易
-
-請用專業且容易理解的方式回答。
-"""
-)
-
-# =========================
+# ===================================
 # 首頁
-# =========================
+# ===================================
 
 @app.route("/")
 def home():
     return "LINE Stock AI is running!"
 
-# =========================
+# ===================================
 # LINE Webhook
-# =========================
+# ===================================
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -75,36 +58,50 @@ def callback():
 
                     print("使用者訊息：", user_message)
 
+                    # ===================================
+                    # Gemini AI
+                    # ===================================
+
                     try:
 
-                        # =========================
-                        # Gemini 回覆
-                        # =========================
+                        prompt = f"""
+你是一位專業台股分析師。
 
-                        response = model.generate_content(user_message)
+請針對以下問題進行專業分析：
 
-                        print("Gemini 原始回覆：")
+{user_message}
+"""
+
+                        response = model.generate_content(prompt)
+
+                        print("========== Gemini 回覆 ==========")
                         print(response)
 
                         ai_reply = "AI 沒有成功產生內容"
 
-                        # 安全判斷
-                        if hasattr(response, "text"):
+                        try:
 
                             if response.text:
                                 ai_reply = response.text[:1000]
 
-                    except Exception as e:
+                        except Exception as text_error:
+
+                            print("讀取 response.text 錯誤")
+                            print(text_error)
+
+                            ai_reply = "AI 回覆格式異常"
+
+                    except Exception as gemini_error:
 
                         print("========== GEMINI ERROR ==========")
-                        print(e)
+                        print(gemini_error)
                         print("==================================")
 
-                        ai_reply = f"Gemini 錯誤：{str(e)}"
+                        ai_reply = f"Gemini 錯誤：{str(gemini_error)}"
 
-                    # =========================
+                    # ===================================
                     # 回覆 LINE
-                    # =========================
+                    # ===================================
 
                     headers = {
                         "Content-Type": "application/json",
@@ -121,28 +118,33 @@ def callback():
                         ]
                     }
 
+                    print("========== 準備回覆 LINE ==========")
+                    print(data)
+
                     response_line = requests.post(
                         "https://api.line.me/v2/bot/message/reply",
                         headers=headers,
                         json=data
                     )
 
-                    print("LINE 回覆狀態：", response_line.status_code)
-                    print("LINE 回覆內容：", response_line.text)
+                    print("========== LINE API RESPONSE ==========")
+                    print("狀態碼:", response_line.status_code)
+                    print("內容:", response_line.text)
+                    print("======================================")
 
         return "OK"
 
-    except Exception as e:
+    except Exception as callback_error:
 
         print("========== CALLBACK ERROR ==========")
-        print(e)
+        print(callback_error)
         print("====================================")
 
         return "ERROR"
 
-# =========================
+# ===================================
 # 主程式
-# =========================
+# ===================================
 
 if __name__ == "__main__":
 
