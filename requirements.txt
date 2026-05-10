@@ -1,6 +1,5 @@
 flask
 gunicorn
 requests
+openai
 google-generativeai
-twstock
-line-bot-sdk
