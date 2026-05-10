@@ -3,4 +3,3 @@ gunicorn
 requests
 google-genai
 twstock
-line-bot-sdk
