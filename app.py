@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-CHANNEL_ACCESS_TOKEN = "QBl2dH/ogltdFZs4aXtgm+wl+z6L1voQTV6THuTWpD6PH16e4if2OaubTTg7CaRDVQdC/34DGsjV+VhmfkpOm89v+1ZswXS9xwgnadiivyIiHzGn7YgrZiqOoL1kHLUWg0oja3FjxULyStLAQnyweQdB04t89/1O/w1cDnyilFU="
+CHANNEL_ACCESS_TOKEN = "bKv3n4K3Dbgw+budYmHIIQzkEsv/zilPtqOVel1fscSwucLENA9yJUctrcLOgG6yVQdC/34DGsjV+VhmfkpOm89v+1ZswXS9xwgnadiivyJeq5/Ve3qCE75Guk8XMs1QOai1jhD4HAETn/Ivg5uqoAdB04t89/1O/w1cDnyilFU="
 
 @app.route("/")
 def home():
