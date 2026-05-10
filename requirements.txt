@@ -2,5 +2,4 @@ flask
 gunicorn
 requests
 openai
-gunicorn
 twstock
