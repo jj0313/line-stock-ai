@@ -22,7 +22,7 @@ print("GEMINI KEY 是否存在：", GEMINI_API_KEY is not None)
 genai.configure(api_key=GEMINI_API_KEY)
 
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
+    model_name="gemini-pro",
     system_instruction="""
 你是一位專業台股投資分析師。
 
