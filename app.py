@@ -1,13 +1,14 @@
 from flask import Flask, request
 import requests
 import os
-import google.generativeai as genai
+
+from google import genai
 
 app = Flask(__name__)
 
-# ===================================
+# =========================
 # 環境變數
-# ===================================
+# =========================
 
 CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -15,136 +16,100 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 print("LINE TOKEN 是否存在：", CHANNEL_ACCESS_TOKEN is not None)
 print("GEMINI KEY 是否存在：", GEMINI_API_KEY is not None)
 
-# ===================================
+# =========================
 # Gemini 初始化
-# ===================================
+# =========================
 
-genai.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel("gemini-pro")
-
-# ===================================
+# =========================
 # 首頁
-# ===================================
+# =========================
 
 @app.route("/")
 def home():
     return "LINE Stock AI is running!"
 
-# ===================================
+# =========================
 # LINE Webhook
-# ===================================
+# =========================
 
 @app.route("/callback", methods=["POST"])
 def callback():
 
-    try:
+    body = request.json
 
-        body = request.json
+    print("收到 webhook")
+    print(body)
 
-        print("========== 收到 webhook ==========")
-        print(body)
+    events = body.get("events", [])
 
-        events = body.get("events", [])
+    for event in events:
 
-        for event in events:
+        if event["type"] == "message":
 
-            if event["type"] == "message":
+            if event["message"]["type"] == "text":
 
-                if event["message"]["type"] == "text":
+                user_message = event["message"]["text"]
+                reply_token = event["replyToken"]
 
-                    user_message = event["message"]["text"]
-                    reply_token = event["replyToken"]
+                print("使用者訊息：", user_message)
 
-                    print("使用者訊息：", user_message)
+                try:
 
-                    # ===================================
-                    # Gemini AI
-                    # ===================================
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=f"""
+你是一位專業台股投資分析師。
 
-                    try:
+請用專業且容易理解的方式回答。
 
-                        prompt = f"""
-你是一位專業台股分析師。
-
-請針對以下問題進行專業分析：
-
+使用者問題：
 {user_message}
 """
-
-                        response = model.generate_content(prompt)
-
-                        print("========== Gemini 回覆 ==========")
-                        print(response)
-
-                        ai_reply = "AI 沒有成功產生內容"
-
-                        try:
-
-                            if response.text:
-                                ai_reply = response.text[:1000]
-
-                        except Exception as text_error:
-
-                            print("讀取 response.text 錯誤")
-                            print(text_error)
-
-                            ai_reply = "AI 回覆格式異常"
-
-                    except Exception as gemini_error:
-
-                        print("========== GEMINI ERROR ==========")
-                        print(gemini_error)
-                        print("==================================")
-
-                        ai_reply = f"Gemini 錯誤：{str(gemini_error)}"
-
-                    # ===================================
-                    # 回覆 LINE
-                    # ===================================
-
-                    headers = {
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {CHANNEL_ACCESS_TOKEN}"
-                    }
-
-                    data = {
-                        "replyToken": reply_token,
-                        "messages": [
-                            {
-                                "type": "text",
-                                "text": ai_reply
-                            }
-                        ]
-                    }
-
-                    print("========== 準備回覆 LINE ==========")
-                    print(data)
-
-                    response_line = requests.post(
-                        "https://api.line.me/v2/bot/message/reply",
-                        headers=headers,
-                        json=data
                     )
 
-                    print("========== LINE API RESPONSE ==========")
-                    print("狀態碼:", response_line.status_code)
-                    print("內容:", response_line.text)
-                    print("======================================")
+                    ai_reply = response.text[:1000]
 
-        return "OK"
+                except Exception as e:
 
-    except Exception as callback_error:
+                    print("Gemini Error:", e)
 
-        print("========== CALLBACK ERROR ==========")
-        print(callback_error)
-        print("====================================")
+                    ai_reply = f"Gemini 錯誤：{str(e)}"
 
-        return "ERROR"
+                # =========================
+                # 回覆 LINE
+                # =========================
 
-# ===================================
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {CHANNEL_ACCESS_TOKEN}"
+                }
+
+                data = {
+                    "replyToken": reply_token,
+                    "messages": [
+                        {
+                            "type": "text",
+                            "text": ai_reply
+                        }
+                    ]
+                }
+
+                response_line = requests.post(
+                    "https://api.line.me/v2/bot/message/reply",
+                    headers=headers,
+                    json=data
+                )
+
+                print("LINE 回覆狀態：", response_line.status_code)
+                print("LINE 回覆內容：", response_line.text)
+
+    return "OK"
+
+# =========================
 # 主程式
-# ===================================
+# =========================
 
 if __name__ == "__main__":
 
