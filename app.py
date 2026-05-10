@@ -10,7 +10,7 @@ import google.generativeai as genai
 
 from openai import OpenAI
 
-app = Flask(**name**)
+app = Flask(__name__)
 
 # =========================
 
