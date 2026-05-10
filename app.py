@@ -1,6 +1,7 @@
 from flask import Flask, request
 import requests
 import os
+import pandas as pd
 
 # Gemini
 import google.generativeai as genai
@@ -17,10 +18,12 @@ app = Flask(__name__)
 CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
+FINMIND_TOKEN = os.getenv("FINMIND_TOKEN")
 
 print("LINE TOKEN 是否存在：", CHANNEL_ACCESS_TOKEN is not None)
 print("GEMINI KEY 是否存在：", GEMINI_API_KEY is not None)
 print("NVIDIA KEY 是否存在：", NVIDIA_API_KEY is not None)
+print("FINMIND TOKEN 是否存在：", FINMIND_TOKEN is not None)
 
 # =========================
 # Gemini 初始化
@@ -42,10 +45,97 @@ if NVIDIA_API_KEY:
     )
 
 # =========================
+# FinMind 股票資料
+# =========================
+
+def get_stock_data(stock_id):
+
+    try:
+
+        url = "https://api.finmindtrade.com/api/v4/data"
+
+        parameter = {
+            "dataset": "TaiwanStockPrice",
+            "data_id": stock_id,
+            "start_date": "2025-01-01",
+            "token": FINMIND_TOKEN,
+        }
+
+        response = requests.get(url, params=parameter)
+
+        data = response.json()
+
+        df = pd.DataFrame(data["data"])
+
+        if df.empty:
+            return None
+
+        latest = df.iloc[-1]
+
+        result = {
+            "stock_id": stock_id,
+            "close": latest["close"],
+            "open": latest["open"],
+            "max": latest["max"],
+            "min": latest["min"],
+            "volume": latest["Trading_Volume"]
+        }
+
+        return result
+
+    except Exception as e:
+
+        print("========== FINMIND ERROR ==========")
+        print(str(e))
+        print("===================================")
+
+        return None
+
+# =========================
 # AI 回覆函式
 # =========================
 
 def ask_ai(user_message):
+
+    # =========================
+    # 偵測股票代號
+    # =========================
+
+    stock_id = None
+
+    words = user_message.split()
+
+    for w in words:
+
+        if w.isdigit() and len(w) == 4:
+            stock_id = w
+            break
+
+    # =========================
+    # 抓股票資料
+    # =========================
+
+    stock_info_text = ""
+
+    if stock_id:
+
+        stock_data = get_stock_data(stock_id)
+
+        if stock_data:
+
+            stock_info_text = f"""
+股票代號：{stock_data['stock_id']}
+
+最新收盤價：{stock_data['close']} 元
+
+開盤價：{stock_data['open']} 元
+
+最高價：{stock_data['max']} 元
+
+最低價：{stock_data['min']} 元
+
+成交量：{stock_data['volume']}
+"""
 
     # =========================
     # 優先 NVIDIA
@@ -75,12 +165,17 @@ def ask_ai(user_message):
 - 短線交易
 - 波段交易
 
-請用專業且容易理解的方式回答。
+請根據提供的真實股票資料進行分析。
 """
                     },
                     {
                         "role": "user",
-                        "content": user_message
+                        "content": f"""
+{stock_info_text}
+
+使用者問題：
+{user_message}
+"""
                     }
                 ],
                 temperature=0.2,
@@ -91,7 +186,9 @@ def ask_ai(user_message):
             ai_reply = completion.choices[0].message.content
 
             if ai_reply:
+
                 print("NVIDIA 回覆成功")
+
                 return ai_reply[:1000]
 
         except Exception as e:
@@ -117,17 +214,9 @@ def ask_ai(user_message):
             prompt = f"""
 你是一位專業台股投資分析師。
 
-你擅長：
-- 台股分析
-- 技術分析
-- KD 指標
-- 布林通道
-- 均線
-- 成交量
-- 短線交易
-- 波段交易
+請根據以下真實股票資料分析：
 
-請用專業且容易理解的方式回答。
+{stock_info_text}
 
 使用者問題：
 {user_message}
@@ -143,7 +232,9 @@ def ask_ai(user_message):
                 ai_reply = "Gemini 無法解析回覆"
 
             if ai_reply:
+
                 print("Gemini 回覆成功")
+
                 return ai_reply[:1000]
 
         except Exception as e:
@@ -191,6 +282,7 @@ def callback():
                     if event["message"]["type"] == "text":
 
                         user_message = event["message"]["text"]
+
                         reply_token = event["replyToken"]
 
                         print("使用者訊息：", user_message)
